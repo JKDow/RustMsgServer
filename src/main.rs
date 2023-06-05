@@ -252,15 +252,16 @@ async fn join_session(addr: String) -> Result<(),()> {
         }
     };
 
-    let (read, mut write) = socket.into_split();
-    let mut reader = BufReader::new(read);
+    let (socket_read, mut socket_write) = socket.into_split();
+    let mut socket_reader = BufReader::new(socket_read);
     let mut line = String::new();
 
     let mut name = String::new();
-    let mut IO_reader = BufReader::new(tokio::io::stdin());
+    let mut io_reader = BufReader::new(tokio::io::stdin());
     println!(">>Enter your name:");
     loop {
-        match IO_reader.read_line(&mut name).await {
+        name.clear();
+        match io_reader.read_line(&mut name).await {
             Ok(n) => {
                 if n == 0 {
                     println!(">>Please enter a non 0 length name");
@@ -274,10 +275,10 @@ async fn join_session(addr: String) -> Result<(),()> {
             }
         }
     }
-
+    println!(">>Thankyou {}, you are not connected to the server", name);
     loop {
         tokio::select! {
-            result = reader.read_line(&mut line) => {
+            result = socket_reader.read_line(&mut line) => {
                 match result {
                     Ok(read_bytes) => {
                         if read_bytes == 0 {
