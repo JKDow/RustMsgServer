@@ -173,6 +173,7 @@ async fn host_server(bind: String) -> Result<(),()> {
                 continue;
             }
         };
+        println!("->Server received new client, creating connection"); //DEBUG
         tokio::spawn(handle_server_connection(socket, tx, addr));
     }
 }
@@ -206,6 +207,7 @@ async fn handle_server_connection(mut socket: TcpStream, tx: broadcast::Sender<(
                         return Err(());
                     }
                 }
+                println!("->Server reveived message and sent to broadcast: {}", line); //DEBUG
                 line.clear(); 
             }
             result = rx.recv() => {
@@ -216,7 +218,7 @@ async fn handle_server_connection(mut socket: TcpStream, tx: broadcast::Sender<(
                         return Err(());
                     }
                 }; 
-
+                println!("->Server received message from broadcast: {}", msg); //DEBUG
                 if addr != other_addr {
                     match writer.write_all(msg.as_bytes()).await {
                         Ok(_) => {},
@@ -291,6 +293,7 @@ async fn join_session(addr: String) -> Result<(),()> {
                         return Ok(()); // Returning Ok except for quit so signify finishing program 
                     }
                 }
+                println!("->Client received msg");
                 println!("{}", line);
                 line.clear();
             }
@@ -306,7 +309,7 @@ async fn join_session(addr: String) -> Result<(),()> {
                     ServerCommand::Msg(msg) => {
                         //send msg 
                         let msg = format!("{}: {}", name, msg);
-                        if let Err(_) = write.write_all(msg.as_bytes()).await {
+                        if let Err(_) = socket_write.write_all(msg.as_bytes()).await {
                             println!(">>Failed to send message");
                             return Err(());
                         }
