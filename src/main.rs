@@ -84,13 +84,15 @@ async fn main() {
         }
 
         if let Mode::Client(addr) = &mode {
-           match join_session(addr.clone()).await {
-               Ok(_) => {},
-               Err(_) => {
-                   println!(">>Error joining server");
+            match join_session(addr.clone()).await {
+                Ok(_) => {
                    mode = Mode::Admin;
-               }
-           } 
+                   continue;
+                }
+                Err(_) => {
+                    return; 
+                }
+            } 
         }
     }
 }
@@ -114,6 +116,10 @@ async fn get_command() -> ServerCommand {
             },
         }
         let words: Vec<&str> = input.split_whitespace().collect();
+        if words.len() == 0 {
+            println!(">>Please enter a command");
+            continue;
+        }
         match words[0].trim() {
             "host" => {
                 if words.len() == 1 {
@@ -142,7 +148,9 @@ async fn get_command() -> ServerCommand {
                     println!(">>Please provide a message to send");
                     continue;
                 }
-                return ServerCommand::Msg{0: words[1..].join(" ")};
+                let msg_string = words[1..].join(" ");
+                //println!("-> received command to send msg: {}", msg_string); //DEBUG
+                return ServerCommand::Msg{0: msg_string};
             }
             "quit" => return ServerCommand::Quit,
             "help" => return ServerCommand::Help,
@@ -173,7 +181,7 @@ async fn host_server(bind: String) -> Result<(),()> {
                 continue;
             }
         };
-        println!("->Server received new client, creating connection"); //DEBUG
+        //println!("->Server received new client, creating connection"); //DEBUG
         tokio::spawn(handle_server_connection(socket, tx, addr));
     }
 }
@@ -192,6 +200,7 @@ async fn handle_server_connection(mut socket: TcpStream, tx: broadcast::Sender<(
                     Ok(read_bytes) => {
                         if read_bytes == 0 {
                             println!(">>Read 0 bytes from socket, closing connection to that client");
+                            return Err(());
                         }
                     }
                     Err(_) => {
@@ -207,7 +216,8 @@ async fn handle_server_connection(mut socket: TcpStream, tx: broadcast::Sender<(
                         return Err(());
                     }
                 }
-                println!("->Server reveived message and sent to broadcast: {}", line); //DEBUG
+                //println!("->Server reveived message and sent to broadcast: {}", line); //DEBUG
+                println!("{}", line);
                 line.clear(); 
             }
             result = rx.recv() => {
@@ -218,7 +228,7 @@ async fn handle_server_connection(mut socket: TcpStream, tx: broadcast::Sender<(
                         return Err(());
                     }
                 }; 
-                println!("->Server received message from broadcast: {}", msg); //DEBUG
+                //println!("->Server received message from broadcast: {}", msg); //DEBUG
                 if addr != other_addr {
                     match writer.write_all(msg.as_bytes()).await {
                         Ok(_) => {},
@@ -277,7 +287,8 @@ async fn join_session(addr: String) -> Result<(),()> {
             }
         }
     }
-    println!(">>Thankyou {}, you are not connected to the server", name);
+    name = name.trim().to_string();
+    println!(">>Thankyou {}, you are now connected to the server", name);
     loop {
         tokio::select! {
             result = socket_reader.read_line(&mut line) => {
@@ -293,7 +304,7 @@ async fn join_session(addr: String) -> Result<(),()> {
                         return Ok(()); // Returning Ok except for quit so signify finishing program 
                     }
                 }
-                println!("->Client received msg");
+                //println!("->Client received msg");
                 println!("{}", line);
                 line.clear();
             }
@@ -308,11 +319,13 @@ async fn join_session(addr: String) -> Result<(),()> {
                     ServerCommand::Shutdown => println!(">>Cannot shutdown when not hosting server"),
                     ServerCommand::Msg(msg) => {
                         //send msg 
-                        let msg = format!("{}: {}", name, msg);
+                        let msg = format!("{}: {}\n", name, msg);
+                        //println!("->Client generated msg to send {}", msg); //DEBUG
                         if let Err(_) = socket_write.write_all(msg.as_bytes()).await {
                             println!(">>Failed to send message");
-                            return Err(());
+                            return Ok(());
                         }
+                        //println!("->Client finished sending msg"); //DEBUG
                     }
                     ServerCommand::Quit => {
                         println!(">>Quitting");
